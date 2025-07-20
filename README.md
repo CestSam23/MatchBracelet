@@ -14,12 +14,15 @@ For further information, visit: https://www.espressif.com/en/solutions/low-power
 ## Epee
 Epee tip consists of a few parts. 
 ![alt text](Documentation/epeePoint.png)
+
 When the tip is depressed, the spring connects with the contact and closes the circuit.
 
 ![alt text](Documentation/wirePlacementEpee.png)
+
 The ground is connected to the bridge, in this way, it doesn't detect the touch when the point is depressed against it.
 
 ![alt text](Documentation/epeeFoilCable.png)
+
 With this information, we can conclude that
 
 Epee is an open circuit, whenever the point is depressed, the circuit is closed and we can detect a signal. The signal must be superior of 2ms (FIE REGULATIONS)
