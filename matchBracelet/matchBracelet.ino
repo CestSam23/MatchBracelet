@@ -16,6 +16,9 @@
 
 //Functions
 void notifyOk();
+void point();
+void noPoint();
+void turnOff();
 
 //Control Variables
 enum Mode{
@@ -33,7 +36,7 @@ typedef struct StructMessage{
   bool status;
 };
 
-//Address, hexadecimal {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+//Address, hexadecimal of the other esp32{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 uint8_t broadcastAddress[] ={};
 esp_now_peer_info_t peerInfo;
 
@@ -44,7 +47,13 @@ void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status){
 
 //Callback when data is received
 void onDataRecv(const uint8_t *mac,const uint8_t *incomingData, int len){
+  StructMessage received;
+  memcpy(&received, incomingData, sizeof(received));
 
+  if(received.status){
+    currentMode = Mode::Riposte;
+    receivedAt = millis();
+  }
 }
 
 void setup() {
@@ -97,23 +106,21 @@ void loop() {
         unsigned long pulse = pulseIn(epeePullDown,HIGH);
         if(pulse>timeSpanEpeeTouch){
 
-          //Detected Point
-
-          //TODO Add the lights and buzzer.
-
           StructMessage msg = {true};
           esp_now_send(broadcastAddress,(uint8_t *) &msg,sizeof(StructMessage));
 
           currentMode = Mode::Point;
           stateStartTime=millis();
+
+          point();
         }
       }
       break;
     case Mode::Point:
       //Wait 3s
       if(millis()-stateStartTime>3000){
-        //TODO Turn off retroalimentation
         currentMode=Mode::Fencing;
+        turnOff();
       }
       break;
     case Mode::Riposte:
@@ -123,26 +130,47 @@ void loop() {
           unsigned long pulse = pulseIn(epeePullDown,HIGH);
           if(pulse>timeSpanEpeeTouch){
             //Touch in correct time
-            //TODO: Add retroalimentation
             currentMode = Mode::Point;
+            point();
 
           }
         }
       } else {
         //No riposte
-        //TODO: ADD RETROALIMETATION
         stateStartTime = millis();
         currentMode = Mode::Point; //Just to wait 
+        noPoint();
       }
       break;
   }
+}
 
+void point(){
+  digitalWrite(blueLed1,HIGH);
+  digitalWrite(blueLed2,HIGH);
+  digitalWrite(buzzer,HIGH);
+  delay(1000);
+  digitalWrite(buzzer,LOW);
+}
 
+void noPoint(){
+  digitalWrite(whiteLed1,HIGH);
+  digitalWrite(whiteLed2,HIGH);
+  digitalWrite(buzzer,HIGH);
+  delay(300);
+  digitalWrite(buzzer,LOW);
+  delay(300);
+  digitalWrite(buzzer,HIGH);
+  delay(300);
+  digitalWrite(buzzer,LOW);
+}
 
-  //TO SEND DATA USE
-  //esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&struct, sizeof(struct));
-  //if(result==ESP_OK){...} else{...}
-
+void turnOff(){
+  digitalWrite(whiteLed1,LOW);
+  digitalWrite(whiteLed2,LOW);
+  digitalWrite(blueLed1,LOW);
+  digitalWrite(blueLed2,LOW);
+  digitalWrite(buzzer,LOW);
 }
 
 void notifyOk(){
