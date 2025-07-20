@@ -13,6 +13,7 @@ For further information, visit: https://www.espressif.com/en/solutions/low-power
 # How does it work
 ## Epee
 Epee tip consists of a few parts. 
+
 ![alt text](Documentation/epeePoint.png)
 
 When the tip is depressed, the spring connects with the contact and closes the circuit.
