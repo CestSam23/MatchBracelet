@@ -31,7 +31,7 @@ unsigned long receivedAt = 0;
 //Struct to be sent
 typedef struct StructMessage{
   bool status;
-} structMessage;
+};
 
 //Address, hexadecimal {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 uint8_t broadcastAddress[] ={};
@@ -101,17 +101,17 @@ void loop() {
 
           //TODO Add the lights and buzzer.
 
-          structMessage msg = {true};
-          esp_now_send(broadcastAddress,(uint8_t *)&struct,sizeof(StructMessage)));
+          StructMessage msg = {true};
+          esp_now_send(broadcastAddress,(uint8_t *) &msg,sizeof(StructMessage));
 
           currentMode = Mode::Point;
-          stateStartTime=milis();
+          stateStartTime=millis();
         }
       }
       break;
     case Mode::Point:
       //Wait 3s
-      if(milis()-stateStartTime>3000){
+      if(millis()-stateStartTime>3000){
         //TODO Turn off retroalimentation
         currentMode=Mode::Fencing;
       }
