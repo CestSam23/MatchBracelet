@@ -1,44 +1,34 @@
 #include <esp_now.h>
 #include <WiFi.h>
 
-/**
-
-
-
-1 Entrada PullDown (Espada)
-1 Entrada PullUp (Florete)
-2 Entrada GPIO
-
-1 Entrada (deviceMode)
-1 sntrada GPIO
-
-5 Salidas GPIO
-3 Entrada GPIO
-8 PINES GPIO
-
-**/
-
 #define whiteLed1      3
 #define whiteLed2      4
 #define blueLed1       10
 #define blueLed2       1
 #define buzzer         0
-#define espadaPullDown 5
-#define floretePullUp  6
+#define epeePullDown 5
+#define foilPullUp  6
 #define deviceMode           2 // Usar con pull-down físico
+
+//FIE REGULATIONS
+#define timeSpanEpeeTouch 2000  //In ms
+#define timeSpanEpeeRiposte 45  
 
 //Functions
 void notifyOk();
 
-//Variables
+//Control Variables
 enum Mode{
   Fencing,
   Riposte,
   Point
-}currentMode;
+}currentMode = Fencing;
+
+unsigned long stateStartTime = 0;
+bool waitingForSignal = false;
+unsigned long receivedAt = 0;
 
 //Struct to be sent
-
 typedef struct StructMessage{
   bool status;
 } structMessage;
@@ -58,6 +48,7 @@ void onDataRecv(const uint8_t *mac,const uint8_t *incomingData, int len){
 }
 
 void setup() {
+  Serial.begin(115200);
 
   //Pin configuration
   pinMode(whiteLed1, OUTPUT);
@@ -66,8 +57,8 @@ void setup() {
   pinMode(blueLed2, OUTPUT);
   pinMode(buzzer,OUTPUT);
 
-  pinMode(espadaPullDown,INPUT_PULLDOWN);
-  pinMode(floretePullUp,INPUT_PULLUP);
+  pinMode(epeePullDown,INPUT_PULLDOWN);
+  pinMode(foilPullUp,INPUT_PULLUP);
   pinMode(deviceMode,INPUT_PULLDOWN);
   
   //Esp Now communication protocol
@@ -79,9 +70,6 @@ void setup() {
     digitalWrite(buzzer,LOW); 
     return;
   }
-
-  notifyOk();
-  //When its succesfully connected, we turn on leds.
   
   //Register for send cb to get status of transmitted packet
   esp_now_register_send_cb(onDataSent);
@@ -97,23 +85,60 @@ void setup() {
 
   //Register for a callback function that will be called when data is received
   esp_now_register_recv_cb(esp_now_recv_cb_t(onDataRecv));
-  Serial.begin(115200);
 
+  notifyOk();
 }
 
 void loop() {
-
   switch(currentMode){
     case Mode::Fencing:
+      //Detect attack
+      if(digitalRead(epeePullDown)==HIGH){
+        unsigned long pulse = pulseIn(epeePullDown,HIGH);
+        if(pulse>timeSpanEpeeTouch){
+
+          //Detected Point
+
+          //TODO Add the lights and buzzer.
+
+          structMessage msg = {true};
+          esp_now_send(broadcastAddress,(uint8_t *)&struct,sizeof(StructMessage)));
+
+          currentMode = Mode::Point;
+          stateStartTime=milis();
+        }
+      }
       break;
     case Mode::Point:
+      //Wait 3s
+      if(milis()-stateStartTime>3000){
+        //TODO Turn off retroalimentation
+        currentMode=Mode::Fencing;
+      }
       break;
     case Mode::Riposte:
+      //The enemy scored a point, time for riposte
+      if(millis()-receivedAt <= timeSpanEpeeRiposte){
+        if(digitalRead(epeePullDown) == HIGH){
+          unsigned long pulse = pulseIn(epeePullDown,HIGH);
+          if(pulse>timeSpanEpeeTouch){
+            //Touch in correct time
+            //TODO: Add retroalimentation
+            currentMode = Mode::Point;
+
+          }
+        }
+      } else {
+        //No riposte
+        //TODO: ADD RETROALIMETATION
+        stateStartTime = millis();
+        currentMode = Mode::Point; //Just to wait 
+      }
       break;
   }
 
 
-  
+
   //TO SEND DATA USE
   //esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&struct, sizeof(struct));
   //if(result==ESP_OK){...} else{...}
