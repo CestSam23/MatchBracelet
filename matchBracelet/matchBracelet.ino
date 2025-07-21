@@ -11,7 +11,7 @@
 #define deviceMode           2 // Usar con pull-down físico
 
 //FIE REGULATIONS
-#define timeSpanEpeeTouch 2000  //In ms
+#define timeSpanEpeeTouch 2  //In ms
 #define timeSpanEpeeRiposte 45  
 
 //Functions
@@ -26,6 +26,11 @@ enum Mode{
   Riposte,
   Point
 }currentMode = Fencing;
+
+bool isDetecting = false;
+unsigned long detectStart = 0;
+unsigned long pulseStart = 0;
+bool countingPulse = false;
 
 unsigned long stateStartTime = 0;
 bool waitingForSignal = false;
@@ -101,18 +106,23 @@ void setup() {
 void loop() {
   switch(currentMode){
     case Mode::Fencing:
-      //Detect attack
-      if(digitalRead(epeePullDown)==HIGH){
-        unsigned long pulse = pulseIn(epeePullDown,HIGH);
+      if(digitalRead(epeePullDown)==HIGH && !isDetecting){
+        isDetecting = true;
+        detectStart = millis();
+      }
+      if(digitalRead(epeePullDown)==LOW && isDetecting){
+        unsigned long duration = millis() - detectStart;
         Serial.print("Deteccion: ");
-        Serial.println(pulse);
-        if(pulse>timeSpanEpeeTouch){
+        Serial.println(duration);
 
+        isDetecting=false;
+
+        if(duration>timeSpanEpeeTouch){
           StructMessage msg = {true};
-          esp_now_send(broadcastAddress,(uint8_t *) &msg,sizeof(StructMessage));
+          esp_now_send(broadcastAddress, (uint8_t*)&msg, sizeof(StructMessage));
 
           currentMode = Mode::Point;
-          stateStartTime=millis();
+          stateStartTime = millis();
 
           point();
         }
@@ -128,14 +138,10 @@ void loop() {
     case Mode::Riposte:
       //The enemy scored a point, time for riposte
       if(millis()-receivedAt <= timeSpanEpeeRiposte){
-        if(digitalRead(epeePullDown) == HIGH){
-          unsigned long pulse = pulseIn(epeePullDown,HIGH);
-          if(pulse>timeSpanEpeeTouch){
-            //Touch in correct time
-            currentMode = Mode::Point;
-            point();
-
-          }
+        unsigned long pulse = pulseIn(epeePullDown,HIGH,timeSpanEpeeRiposte * 1000);
+        if(pulse>timeSpanEpeeTouch){
+          currentMode=Mode::Point;
+          point();
         }
       } else {
         //No riposte
