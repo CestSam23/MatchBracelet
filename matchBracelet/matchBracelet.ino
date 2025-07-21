@@ -3,11 +3,11 @@
 
 #define whiteLed1      3
 #define whiteLed2      4
-#define blueLed1       10
+#define blueLed1       0
 #define blueLed2       1
-#define buzzer         0
+#define buzzer         10
 #define epeePullDown 5
-#define foilPullUp  6
+ 
 #define deviceMode           2 // Usar con pull-down físico
 
 //FIE REGULATIONS
@@ -37,7 +37,7 @@ typedef struct StructMessage{
 };
 
 //Address, hexadecimal of the other esp32{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
-uint8_t broadcastAddress[] ={};
+uint8_t broadcastAddress[] ={0X94, 0XA9,0X90,0X70,0X4C,0X3C};
 esp_now_peer_info_t peerInfo;
 
 //Callback when data is sent
@@ -66,9 +66,9 @@ void setup() {
   pinMode(blueLed2, OUTPUT);
   pinMode(buzzer,OUTPUT);
 
-  pinMode(epeePullDown,INPUT_PULLDOWN);
-  pinMode(foilPullUp,INPUT_PULLUP);
-  pinMode(deviceMode,INPUT_PULLDOWN);
+  pinMode(epeePullDown,INPUT);
+//  pinMode(foilPullUp,INPUT);
+  pinMode(deviceMode,INPUT);
   
   //Esp Now communication protocol
   WiFi.mode(WIFI_STA);
@@ -104,6 +104,8 @@ void loop() {
       //Detect attack
       if(digitalRead(epeePullDown)==HIGH){
         unsigned long pulse = pulseIn(epeePullDown,HIGH);
+        Serial.print("Deteccion: ");
+        Serial.println(pulse);
         if(pulse>timeSpanEpeeTouch){
 
           StructMessage msg = {true};
