@@ -12,7 +12,7 @@
 
 //FIE REGULATIONS
 #define timeSpanEpeeTouch 2  //In ms
-#define timeSpanEpeeRiposte 45  
+#define timeSpanEpeeRiposte 2000  
 
 //Functions
 void notifyOk();
@@ -42,7 +42,8 @@ typedef struct StructMessage{
 };
 
 //Address, hexadecimal of the other esp32{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
-uint8_t broadcastAddress[] ={0X94, 0XA9,0X90,0X70,0X4C,0X3C};
+/*Mac oponente: 28:37:2f:73:53:7c */uint8_t broadcastAddress[] ={0X28, 0X37,0X2F,0X73,0X53,0X7C};
+
 esp_now_peer_info_t peerInfo;
 
 //Callback when data is sent
@@ -52,6 +53,25 @@ void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status){
 
 //Callback when data is received
 void onDataRecv(const uint8_t *mac,const uint8_t *incomingData, int len){
+  StructMessage received;
+  memcpy(&received, incomingData, sizeof(received));
+
+  if(received.status){
+    currentMode = Mode::Riposte;
+    receivedAt = millis();
+  }
+}
+
+void onDataRecv(const esp_now_recv_info_t *recvInfo,const uint8_t *incomingData, int len){
+  char macStr[18];
+  snprintf(macStr, sizeof(macStr),
+           "%02X:%02X:%02X:%02X:%02X:%02X",
+           recvInfo->src_addr[0], recvInfo->src_addr[1], recvInfo->src_addr[2],
+           recvInfo->src_addr[3], recvInfo->src_addr[4], recvInfo->src_addr[5]);
+
+  Serial.print("Datos recibidos de: ");
+  Serial.println(macStr);
+
   StructMessage received;
   memcpy(&received, incomingData, sizeof(received));
 
@@ -98,7 +118,7 @@ void setup() {
   }
 
   //Register for a callback function that will be called when data is received
-  esp_now_register_recv_cb(esp_now_recv_cb_t(onDataRecv));
+  esp_now_register_recv_cb(onDataRecv);
 
   notifyOk();
 }
@@ -110,16 +130,32 @@ void loop() {
         isDetecting = true;
         detectStart = millis();
       }
-      if(digitalRead(epeePullDown)==LOW && isDetecting){
+      if(isDetecting){
         unsigned long duration = millis() - detectStart;
-        Serial.print("Deteccion: ");
-        Serial.println(duration);
+        if(digitalRead(epeePullDown)==LOW){
+          unsigned long duration = millis() - detectStart;
+          Serial.print("Detection: ");
+          Serial.println(duration);
 
-        isDetecting=false;
-
+          isDetecting=false;
+        } else {
+          unsigned long pulseDuration = millis() - detectStart;
+          if(pulseDuration>=timeSpanEpeeTouch){
+            Serial.println("Detection higher than FIE regulatations");
+            isDetecting=false;
+            duration = 3;
+            
+          }
+        }
         if(duration>timeSpanEpeeTouch){
           StructMessage msg = {true};
-          esp_now_send(broadcastAddress, (uint8_t*)&msg, sizeof(StructMessage));
+          esp_err_t result = esp_now_send(broadcastAddress, (uint8_t*)&msg, sizeof(msg));
+          if (result == ESP_OK) {
+            Serial.println("Sent with success");
+          } else {
+            Serial.print("Error sending the data: ");
+            Serial.println(result);
+          }
 
           currentMode = Mode::Point;
           stateStartTime = millis();
@@ -136,17 +172,32 @@ void loop() {
       }
       break;
     case Mode::Riposte:
-      //The enemy scored a point, time for riposte
-      if(millis()-receivedAt <= timeSpanEpeeRiposte){
-        unsigned long pulse = pulseIn(epeePullDown,HIGH,timeSpanEpeeRiposte * 1000);
-        if(pulse>timeSpanEpeeTouch){
-          currentMode=Mode::Point;
-          point();
+      Serial.print("RIPOSTE!:");
+      if (millis() - receivedAt <= timeSpanEpeeRiposte) {
+        Serial.println(millis()-receivedAt);
+        if (!isDetecting && digitalRead(epeePullDown) == HIGH) {
+          isDetecting = true;
+          detectStart = millis();
+        }
+
+        if (isDetecting) {
+          unsigned long duration = millis() - detectStart;
+
+          if (digitalRead(epeePullDown) == LOW) {
+            isDetecting = false; // No alcanzó el tiempo requerido
+          } else if (duration >= timeSpanEpeeTouch) {
+            // TOQUE válido en tiempo de riposte
+            currentMode = Mode::Point;
+            stateStartTime = millis();
+            isDetecting = false;
+            point();
+          }
         }
       } else {
-        //No riposte
+        // Se acabó el tiempo de riposte
+        Serial.println("No Riposte");
+        currentMode = Mode::Point;
         stateStartTime = millis();
-        currentMode = Mode::Point; //Just to wait 
         noPoint();
       }
       break;
